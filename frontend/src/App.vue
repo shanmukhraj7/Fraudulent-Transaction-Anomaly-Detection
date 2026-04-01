@@ -1,7 +1,17 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
+<template>
+  <div>
+    <h1>Fraud Detection Dashboard</h1>
+  </div>
+</template>
+
+<script>
+export default {
+  name: "App"
+}
 </script>
 
-<template>
-  <HelloWorld />
-</template>
+<style>
+body {
+  font-family: Arial, sans-serif;
+}
+</style>

@@ -1,6 +1,5 @@
 import os
 import sys
-import pickle
 from pathlib import Path
 
 import pandas as pd
@@ -10,7 +9,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from preprocessing import load_dataset, preprocessing_data
-from model_isolation_forest import train_isolation_forest
+from feature_engineering import apply_pca, create_features
+from model_isolation_forest import train_isolation_forest, predict as if_predict
+from evaluate import evaluate_model
+from utility import save_model
 
 MODEL_DIR  = Path(__file__).parent / "models"
 MODEL_PATH = MODEL_DIR / "isolation_forest.pkl"
@@ -24,6 +26,10 @@ def run_training(data_path: Path = DATA_PATH) -> None:
 
     print(f"[train] Loading dataset...")
     df = load_dataset(str(data_path))
+    
+    print("[train] Feature Engineering...")
+    df = create_features(df)
+    
     X, y = preprocessing_data(df)
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -31,18 +37,26 @@ def run_training(data_path: Path = DATA_PATH) -> None:
     )
     print(f"[train] Train: {len(X_train)}  Test: {len(X_test)}")
 
+    print("[train] Applying PCA...")
+    X_train_pca, pca_model = apply_pca(X_train)
+    
+    # Re-apply PCA transform to test set manually
+    X_test_pca = pd.DataFrame(
+        pca_model.transform(X_test), 
+        columns=X_train_pca.columns, 
+        index=X_test.index
+    )
+    
+    save_model(pca_model, MODEL_DIR / "pca_model.pkl")
+
     print("[train] Training Isolation Forest...")
-    model = train_isolation_forest(X_train)
+    model = train_isolation_forest(X_train_pca)
 
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    with open(MODEL_PATH, "wb") as f:
-        pickle.dump(model, f)
-    print(f"[train] Model saved → {MODEL_PATH}")
+    save_model(model, MODEL_PATH)
 
-    from sklearn.metrics import classification_report
-    from model_isolation_forest import predict as if_predict
-    y_pred = if_predict(model, X_test)
-    print(classification_report(y_test, y_pred))
+    print("[train] Evaluating Model...")
+    y_pred = if_predict(model, X_test_pca)
+    evaluate_model(y_test, y_pred)
 
     _log_training_run(len(X_train), len(X_test))
 
